@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/*
+ * Color tokens. Components refer to roles (surface, text, series-a), never
+ * raw hex, so light/dark mode swaps in one place.
+ * Series colors are the first two slots of a colorblind-validated palette.
+ */
+:root {
+  color-scheme: light;
+  --surface-0: #f4f4f2; /* page */
+  --surface-1: #fcfcfb; /* cards, chart surface */
+  --border: #e2e1dc;
+  --grid: #ecebe7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #77766f;
+  --accent: #2a78d6;
+  --series-a: #2a78d6; /* blue */
+  --series-b: #eb6834; /* orange */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #33332f;
+    --grid: #2a2a27;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #96958c;
+    --accent: #3987e5;
+    --series-a: #3987e5;
+    --series-b: #d95926;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --border: #33332f;
+  --grid: #2a2a27;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #96958c;
+  --accent: #3987e5;
+  --series-a: #3987e5;
+  --series-b: #d95926;
+}
+
+/* Expose the tokens as Tailwind colors: bg-surface-1, text-secondary, ... */
+@theme inline {
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-border: var(--border);
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-series-a: var(--series-a);
+  --color-series-b: var(--series-b);
+}
+
+body {
+  background: var(--surface-0);
+  color: var(--text-primary);
+}
+
+input[type="range"] {
+  accent-color: var(--accent);
+}

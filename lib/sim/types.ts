@@ -1,0 +1,43 @@
+/**
+ * Core types for the ODE engine.
+ *
+ * Nothing in /lib/sim knows about tumors, drugs, or biology. It only knows
+ * how to integrate a system of ordinary differential equations
+ *
+ *     dy/dt = f(t, y),   y(t0) = y0
+ *
+ * where y is a vector (array) of state variables. A one-population tumor
+ * model has y = [N]; a later two-population model will have
+ * y = [sensitive, resistant]; a protein-spread model might have one entry
+ * per brain region. The solver treats them all the same way.
+ */
+
+/** The state vector y. One number per state variable. */
+export type State = readonly number[];
+
+/**
+ * The right-hand side f(t, y) of dy/dt = f(t, y).
+ * Must return an array the same length as `y`, and must not mutate `y`.
+ */
+export type DerivativeFn = (t: number, y: State) => number[];
+
+/** Inputs to a fixed-step solver run. */
+export interface SolveOptions {
+  /** The derivative function f(t, y). */
+  f: DerivativeFn;
+  /** Initial state y(t0). */
+  y0: State;
+  /** Integrate from tSpan[0] to tSpan[1]. */
+  tSpan: readonly [number, number];
+  /** Step size h. The final step is shortened so we land exactly on tSpan[1]. */
+  dt: number;
+}
+
+/**
+ * A computed trajectory: `t[i]` is a time point and `y[i]` is the state
+ * vector at that time. `y[i][j]` is state variable j at time t[i].
+ */
+export interface Solution {
+  t: number[];
+  y: number[][];
+}
