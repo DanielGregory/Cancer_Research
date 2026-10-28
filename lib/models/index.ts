@@ -7,6 +7,7 @@ export * from "./types";
 export * from "./params";
 export { exponential, logistic, gompertz };
 export { withTreatment } from "./treatment";
+export { twoPopulation, type TwoPopulationParams } from "./twoPopulation";
 
 /** All growth models, in the order shown in the UI. */
 export const GROWTH_MODELS = [exponential, logistic, gompertz] as const;

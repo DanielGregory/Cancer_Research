@@ -9,11 +9,12 @@
  * call the solver themselves; the scenario layer (/lib/scenario) turns them
  * into a DerivativeFn and hands that to the generic engine in /lib/sim.
  *
- * Looking ahead: multi-population models (e.g. drug-sensitive vs
- * drug-resistant cells) won't fit the single-N `rate(N)` shape. They will get
- * their own interface whose derivative works on a state vector, alongside
- * this one, rather than forcing everything through a single abstraction now.
+ * Multi-population models (e.g. drug-sensitive vs drug-resistant cells)
+ * don't fit the single-N `rate(N)` shape, so they use `PopulationModel`
+ * below, whose derivative works on a whole state vector.
  */
+
+import type { State } from "@/lib/sim";
 
 /** Every parameter a growth model might use. Individual models pick a subset. */
 export interface GrowthParamValues {
@@ -59,4 +60,24 @@ export interface GrowthModel<P extends Partial<GrowthParamValues>> {
    * Omitted for models with no finite steady state (exponential).
    */
   steadyState?: (params: P, kill: number) => number;
+}
+
+/**
+ * A model with several interacting populations, e.g. y = [S, R].
+ *
+ * Unlike `GrowthModel`, the drug effect is part of the model: which
+ * populations the drug hits, and how hard, is exactly what such models are
+ * about. The derivative receives the current drug concentration C.
+ */
+export interface PopulationModel<P> {
+  id: string;
+  name: string;
+  /** Short name for each entry of the state vector, in order. */
+  stateLabels: readonly string[];
+  /** One display equation per state variable. */
+  equations: readonly string[];
+  summary: string;
+  explanation: string[];
+  defaults: P;
+  derivative: (t: number, y: State, params: P, C: number) => number[];
 }

@@ -40,13 +40,14 @@ export function rk4Step(f: DerivativeFn, t: number, y: State, h: number): number
  * The final step is shortened if needed so the last time point is exactly
  * tSpan[1].
  */
-export function solveRK4({ f, y0, tSpan, dt }: SolveOptions): Solution {
+export function solveRK4({ f, y0, tSpan, dt, onPoint }: SolveOptions): Solution {
   const [t0, t1] = tSpan;
   if (!(dt > 0)) throw new Error(`dt must be positive, got ${dt}`);
   if (!(t1 >= t0)) throw new Error(`tSpan must satisfy t0 <= t1, got [${t0}, ${t1}]`);
 
   const t: number[] = [t0];
   const y: number[][] = [[...y0]];
+  onPoint?.(t0, y[0]);
 
   // Count steps up front instead of looping `while (time < t1)`: repeatedly
   // adding dt accumulates floating-point error and can produce a spurious
@@ -60,6 +61,7 @@ export function solveRK4({ f, y0, tSpan, dt }: SolveOptions): Solution {
     state = rk4Step(f, tStart, state, tEnd - tStart);
     t.push(tEnd);
     y.push(state);
+    onPoint?.(tEnd, state);
   }
 
   return { t, y };

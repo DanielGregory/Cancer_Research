@@ -132,3 +132,32 @@ describe("solveRK4 — time grid and inputs", () => {
     expect(rk4Step(f, 0, [7], 0)).toEqual([7]);
   });
 });
+
+describe("solveRK4 — onPoint observer", () => {
+  it("sees every output point, in order, starting with the initial state", () => {
+    const seen: [number, number][] = [];
+    const sol = solveRK4({
+      f: (_t, [N]) => [N],
+      y0: [1],
+      tSpan: [0, 1],
+      dt: 0.25,
+      onPoint: (t, [N]) => seen.push([t, N]),
+    });
+    expect(seen).toEqual(sol.t.map((t, i) => [t, sol.y[i][0]]));
+  });
+
+  it("lets a controller switch the equation between steps", () => {
+    // dy/dt = u, where the controller sets u = 1 until y reaches 1, then u = 0.
+    let u = 1;
+    const { y } = solveRK4({
+      f: () => [u],
+      y0: [0],
+      tSpan: [0, 3],
+      dt: 0.1,
+      onPoint: (_t, [v]) => {
+        if (v >= 1 - 1e-9) u = 0;
+      },
+    });
+    expect(y.at(-1)![0]).toBeCloseTo(1, 9);
+  });
+});

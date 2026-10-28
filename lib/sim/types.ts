@@ -31,6 +31,17 @@ export interface SolveOptions {
   tSpan: readonly [number, number];
   /** Step size h. The final step is shortened so we land exactly on tSpan[1]. */
   dt: number;
+  /**
+   * Optional observer, called with every output point as it is computed,
+   * starting with (t0, y0) and then after each step.
+   *
+   * This is how feedback control plugs in without the solver knowing about
+   * it: a controller can look at the state between steps and change
+   * something that `f` reads (e.g. switch a drug on or off). Whatever it
+   * sets is then held fixed for the whole next step, so each step still
+   * integrates a smooth equation.
+   */
+  onPoint?: (t: number, y: State) => void;
 }
 
 /**

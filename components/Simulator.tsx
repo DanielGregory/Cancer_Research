@@ -11,18 +11,19 @@ import {
   type GrowthParamKey,
   type GrowthParamValues,
 } from "@/lib/models";
-import { runTumorScenario, type ScenarioResult } from "@/lib/scenario/tumorScenario";
+import { runTumorScenario } from "@/lib/scenario/tumorScenario";
+import { buildRows } from "./chartRows";
 import { ExplanationPanel } from "./ExplanationPanel";
 import { RunSummary } from "./RunSummary";
-import { TimeSeriesChart, type ChartRow, type SeriesSpec } from "./TimeSeriesChart";
+import { TimeSeriesChart, type SeriesSpec } from "./TimeSeriesChart";
 import { DosingControls } from "./controls/DosingControls";
 import { ModelSelector } from "./controls/ModelSelector";
 import { Slider } from "./controls/Slider";
 
 /** Solver step in days. Small relative to the shortest pulse (0.5 days). */
 const DT = 0.05;
-/** Max points sent to the chart; the solver itself keeps every step. */
-const MAX_CHART_POINTS = 600;
+
+const FIXED_KINDS = ["none", "constant", "pulsed"] as const;
 
 const RUN_A: SeriesSpec = { key: "a", name: "Run A", color: "var(--series-a)" };
 const RUN_B: SeriesSpec = { key: "b", name: "Run B", color: "var(--series-b)", dashed: true };
@@ -61,8 +62,15 @@ export function Simulator() {
   );
 
   const series = compare ? [RUN_A, RUN_B] : [RUN_A];
-  const sizeData = useMemo(() => toRows(resultA, resultB, "N", logScale), [resultA, resultB, logScale]);
-  const drugData = useMemo(() => toRows(resultA, resultB, "C", false), [resultA, resultB]);
+  // Both runs share the same time grid (same tEnd and dt), so rows line up.
+  const sizeData = useMemo(
+    () => buildRows(resultA.t, { a: resultA.N, ...(resultB && { b: resultB.N }) }, { logScale }),
+    [resultA, resultB, logScale],
+  );
+  const drugData = useMemo(
+    () => buildRows(resultA.t, { a: resultA.C, ...(resultB && { b: resultB.C }) }, { keepChanges: true }),
+    [resultA, resultB],
+  );
 
   const setParam = (key: GrowthParamKey, value: number) => setParams((p) => ({ ...p, [key]: value }));
 
@@ -93,7 +101,13 @@ export function Simulator() {
           <Slider label="Simulate for" unit="days" value={tEnd} min={10} max={365} step={5} onChange={setTEnd} />
         </section>
 
-        <DosingControls title="Run A dosing" color={RUN_A.color} value={dosingA} onChange={setDosingA} />
+        <DosingControls
+          title="Run A dosing"
+          color={RUN_A.color}
+          kinds={FIXED_KINDS}
+          value={dosingA}
+          onChange={setDosingA}
+        />
 
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} />
@@ -105,6 +119,7 @@ export function Simulator() {
             title="Run B dosing"
             color={RUN_B.color}
             dashed
+            kinds={FIXED_KINDS}
             value={dosingB}
             onChange={setDosingB}
           />
@@ -140,38 +155,4 @@ export function Simulator() {
       </section>
     </div>
   );
-}
-
-/**
- * Merge one or two runs into chart rows: { t, a, b }. Both runs share the
- * same time grid (same tEnd and dt), so rows line up index-by-index.
- *
- * Downsampling only affects drawing; the solver's accuracy is unchanged.
- * For the stepped drug chart, a coarse stride could skip short pulses, so
- * we keep any point where either concentration changes.
- */
-function toRows(
-  a: ScenarioResult,
-  b: ScenarioResult | null,
-  field: "N" | "C",
-  logScale: boolean,
-): ChartRow[] {
-  const stride = Math.max(1, Math.ceil(a.t.length / MAX_CHART_POINTS));
-  // Log axes can't show 0 or negatives; drop those points instead of breaking the axis.
-  const clean = (v: number) => (logScale && v <= 0 ? null : v);
-
-  const rows: ChartRow[] = [];
-  for (let i = 0; i < a.t.length; i++) {
-    const isLast = i === a.t.length - 1;
-    const changes =
-      field === "C" &&
-      i > 0 &&
-      (a.C[i] !== a.C[i - 1] || (b !== null && b.C[i] !== b.C[i - 1]));
-    if (i % stride !== 0 && !isLast && !changes) continue;
-
-    const row: ChartRow = { t: a.t[i], a: clean(a[field][i]) };
-    if (b) row.b = clean(b[field][i]);
-    rows.push(row);
-  }
-  return rows;
 }

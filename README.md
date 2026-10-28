@@ -1,9 +1,13 @@
 # Tumor Growth Simulator
 
 An interactive, in-browser simulator for learning how mathematical models of
-tumor growth and drug treatment behave. You pick a growth law, set its
-parameters and a dosing schedule, and watch the tumor's size over time. You can
-also overlay two dosing schedules to compare them.
+tumor growth and drug treatment behave. It has two pages:
+
+- **Growth & dosing** (`/`): pick a growth law, set its parameters and a dosing
+  schedule, and watch the tumor's size over time. Overlay two schedules to compare them.
+- **Resistance & adaptive therapy** (`/resistance`): a tumor made of
+  drug-sensitive and drug-resistant cells. Compare maximum-dose treatment with
+  adaptive therapy and see which delays relapse.
 
 It's a learning and research sandbox. The code is written to be read: the
 math lives in small, commented, pure TypeScript functions, and the tests double
@@ -119,11 +123,69 @@ comparisons. The default pulsed schedule (2× dose, half the time) delivers the
 same total drug as the constant one. A pulsed run can still end with a
 partial pulse, so its total can come out slightly higher.
 
-**Simplifications to keep in mind:** `C(t)` switches instantly. There is no
-absorption or clearance (pharmacokinetics), no resistance, no immune system,
-and no spatial structure. Also, RK4's 4th-order accuracy assumes a smooth
-right-hand side. Steps that straddle an on/off switch are less accurate, which
-is why the UI uses a small step (0.05 days).
+### Sensitive vs resistant cells (`lib/models/twoPopulation.ts`)
+
+```
+dS/dt = rS·S·(1 − (S + R)/K) − k·C(t)·S
+dR/dt = rR·R·(1 − (S + R)/K)
+```
+
+Two populations share **one** carrying capacity K, so every cell of either type
+takes room the other could use. The drug hits only S. Resistance has a fitness
+cost, so `rR < rS`.
+
+- **Competitive release.** Max-dose therapy wipes out S, which frees space, and
+  R grows into it unopposed. The tumor relapses and is now fully resistant.
+- **Adaptive therapy** pauses the drug to keep S alive as a competitor. The
+  tumor stays large, so R's growth term `(1 − (S+R)/K)` stays small.
+- **A conserved quantity.** Untreated, both populations feel the same "room"
+  factor, so `ln(S/S₀)/rS = ln(R/R₀)/rR` holds exactly. The tests check this. It also means that
+  once the tumor fills K, the S:R mix freezes. Sensitive cells gain share only while there's
+  free space. A Lotka–Volterra model with separate competition coefficients
+  would let one type actively displace the other.
+
+With the defaults (750 mm³ tumor, 0.7% resistant), max dose progresses on
+about day 224. Adaptive therapy progresses on about day 360 and uses ~56% less drug per day.
+
+### Adaptive dosing (`lib/dosing/adaptive.ts`)
+
+This follows the first adaptive-therapy trial (Zhang et al., *Nat. Commun.* 2017):
+record the burden when treatment starts as the baseline, dose until the burden
+falls below 50% of baseline, then pause until it regrows to 100%, and repeat.
+
+The gap between the two thresholds gives **hysteresis**: at 70% of baseline the
+drug is on if the tumor is shrinking and off if it's regrowing. So the dose
+depends on *history*, not only on `(t, N)`, and can't be a plain function C(t).
+It's a small controller with memory:
+
+```ts
+interface DosingController {
+  concentration(t: number): number;        // read by the ODE
+  observe(t: number, burden: number): void; // called between solver steps
+}
+```
+
+The solver calls an optional `onPoint(t, y)` hook after every step. The
+controller watches the tumor there and decides the dose for the next step,
+like a clinic measuring at each visit. The dose is held constant within a
+step, so RK4 still integrates a smooth equation. `lib/sim` stays
+disease-agnostic: the hook is just "tell me each point as you compute it."
+
+**Progression** is when the total burden exceeds a multiple (default 1.2×) of
+its day-0 size, loosely following the clinical RECIST "20% growth" rule. The
+summary compares time to progression and the drug given *up to* progression,
+since a failing regimen would be stopped.
+
+### Simplifications to keep in mind
+
+- `C(t)` switches instantly: there's no absorption or clearance (pharmacokinetics).
+- No immune system, no spatial structure, and no drug toxicity limiting the dose.
+- On the growth page every cell is equally sensitive. On the resistance page,
+  resistant cells are fully immune and cells never switch type.
+- RK4's 4th-order accuracy assumes a smooth right-hand side. Steps that straddle
+  a fixed schedule's on/off switch are less accurate, which is why the pages use
+  small steps (0.05 and 0.1 days). The adaptive controller only switches between
+  steps, so it doesn't have this issue.
 
 ---
 
@@ -131,18 +193,23 @@ is why the UI uses a small step (0.05 days).
 
 ```
 app/
-  layout.tsx, page.tsx, globals.css   Page shell, footer, color tokens (light/dark)
+  layout.tsx, globals.css    Shell (nav, footer), color tokens (light/dark)
+  page.tsx                   Growth & dosing page
+  resistance/page.tsx        Resistance & adaptive therapy page
 components/
-  Simulator.tsx           State + wiring: runs scenarios, feeds charts
-  TimeSeriesChart.tsx     Recharts line chart (one quantity, 1–2 runs)
-  RunSummary.tsx          Table of final/peak size and total drug per run
-  ExplanationPanel.tsx    Collapsible "What's happening" panel
-  controls/               Slider, ModelSelector, DosingControls
+  Simulator.tsx              Growth page: state + wiring
+  RunSummary.tsx, ExplanationPanel.tsx
+  resistance/                Resistance page: simulator, summary table, explanation
+  TimeSeriesChart.tsx        Shared Recharts line chart (one quantity, several series)
+  chartRows.ts               Arrays → chart rows, with downsampling
+  Collapsible.tsx, SiteNav.tsx
+  controls/                  Slider, ModelSelector, DosingControls (fixed + adaptive)
 lib/
-  sim/        Disease-agnostic ODE engine (types, RK4). Knows nothing about tumors.
-  models/     Growth laws (pure functions + docs + defaults), treatment term, param metadata
-  dosing/     Dosing schedules → C(t), exposure
-  scenario/   Glue: model + treatment + dosing → DerivativeFn → solver → result
+  sim/        Disease-agnostic ODE engine (types, RK4, onPoint hook). Knows nothing about tumors.
+  models/     Growth laws, treatment term, two-population model, param metadata
+  dosing/     Fixed schedules → C(t) and exposure; adaptive controller
+  scenario/   Glue: model + dosing → DerivativeFn → solver → result
+              (tumorScenario.ts, resistanceScenario.ts)
 ```
 
 **Dependency direction:** `scenario → models, dosing → sim`. The engine never
@@ -159,6 +226,13 @@ Tests live next to the code they test (`*.test.ts`):
   exponential, non-negativity, and analytic steady states matching simulation
 - `lib/dosing/schedules.test.ts`: on/off timing and exact exposure vs a Riemann sum
 - `lib/scenario/tumorScenario.test.ts`: end-to-end sanity checks (treatment helps; delaying it doesn't)
+- `lib/sim/rk4.test.ts` (onPoint): the observer sees every point, and a controller can switch the equation between steps
+- `lib/models/twoPopulation.test.ts`: reduces to logistic when one population is
+  absent, the drug never touches R, a shared K, the `ln(S/S₀)/rS = ln(R/R₀)/rR`
+  invariant, competitive release
+- `lib/dosing/adaptive.test.ts`: baseline capture, hysteresis, fresh state per controller
+- `lib/scenario/resistanceScenario.test.ts`: max dose relapses with resistant cells,
+  adaptive delays progression and uses less drug per day, exposure bookkeeping
 
 ---
 
@@ -169,29 +243,16 @@ Tests live next to the code they test (`*.test.ts`):
 RK4 engine, three growth laws, log-kill treatment, three dosing schedules, an
 interactive page with A/B comparison, and tests.
 
-### Stage 2: Two-population model and adaptive therapy
+### Stage 2: Two-population model and adaptive therapy ✅
 
-Drug-sensitive `S` and drug-resistant `R` cells competing for the same space:
+Sensitive vs resistant cells with a shared carrying capacity, an adaptive
+dosing controller with hysteresis, and a `/resistance` page comparing max dose
+with adaptive therapy (time to progression, drug used, composition over time).
+See "How the models work" above.
 
-```
-dS/dt = r_S·S·(1 − (S + R)/K) − k·C(t)·S
-dR/dt = r_R·R·(1 − (S + R)/K)
-```
-
-Usually `r_R < r_S` (resistance has a fitness cost). Max-dose therapy wipes out
-`S` and releases `R` from competition; **adaptive therapy** doses only when the
-total burden is above a threshold, keeping sensitive cells around to suppress
-resistant ones.
-
-How it slots in:
-- The solver already integrates array states, so nothing changes in `lib/sim`.
-- Add `lib/models/twoPopulation.ts` with a new `PopulationModel` interface
-  (`stateLabels`, `derivative(t, y, params, C)`) next to the single-population
-  `GrowthModel` (see the note in `lib/models/types.ts`).
-- Adaptive dosing depends on the state, not just time, so `C` becomes
-  `C(t, y)`. That's a new `DosingSchedule` kind plus a `concentrationAt(schedule, t, y)`
-  overload. The fixed-schedule kinds ignore `y`.
-- Add `lib/scenario/twoPopulationScenario.ts`. Charts already plot any number of series.
+Possible extensions: partial resistance (a smaller `k` for R), mutation S → R,
+Lotka–Volterra competition coefficients, and visit-based monitoring (measure
+every N days instead of every step).
 
 ### Stage 3: Fitting parameters to published data
 

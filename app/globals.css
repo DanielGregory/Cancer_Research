@@ -17,6 +17,8 @@
   --accent: #2a78d6;
   --series-a: #2a78d6; /* blue */
   --series-b: #eb6834; /* orange */
+  --pop-s: #1baf7a; /* sensitive cells: aqua */
+  --pop-r: #6250d6; /* resistant cells: violet */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +34,8 @@
     --accent: #3987e5;
     --series-a: #3987e5;
     --series-b: #d95926;
+    --pop-s: #199e70;
+    --pop-r: #9085e9;
   }
 }
 
@@ -47,6 +51,8 @@
   --accent: #3987e5;
   --series-a: #3987e5;
   --series-b: #d95926;
+  --pop-s: #199e70;
+  --pop-r: #9085e9;
 }
 
 /* Expose the tokens as Tailwind colors: bg-surface-1, text-secondary, ... */
@@ -60,6 +66,8 @@
   --color-accent: var(--accent);
   --color-series-a: var(--series-a);
   --color-series-b: var(--series-b);
+  --color-pop-s: var(--pop-s);
+  --color-pop-r: var(--pop-r);
 }
 
 body {

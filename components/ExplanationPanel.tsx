@@ -2,6 +2,7 @@
 
 import { averageConcentration, type DosingSchedule } from "@/lib/dosing";
 import type { AnyGrowthModel, GrowthParamValues } from "@/lib/models";
+import { Collapsible } from "./Collapsible";
 
 interface ExplanationPanelProps {
   model: AnyGrowthModel;
@@ -13,13 +14,7 @@ interface ExplanationPanelProps {
 /** Collapsible plain-language description of the current model and treatment. */
 export function ExplanationPanel({ model, params, k, dosing }: ExplanationPanelProps) {
   return (
-    <details className="group rounded-xl border border-border bg-surface-1 p-4" open>
-      <summary className="cursor-pointer list-none text-sm font-semibold select-none">
-        <span className="mr-2 inline-block transition-transform group-open:rotate-90">›</span>
-        What&rsquo;s happening
-      </summary>
-
-      <div className="mt-3 space-y-3 text-sm leading-relaxed text-secondary">
+    <Collapsible title="What’s happening">
         <p>
           <span className="font-medium text-primary">{model.name} growth</span> ·{" "}
           <span className="font-mono">{model.equation}</span>
@@ -36,8 +31,7 @@ export function ExplanationPanel({ model, params, k, dosing }: ExplanationPanelP
         </p>
 
         <p className="rounded-lg bg-surface-0 p-3">{treatmentInsight(model, params, k, dosing)}</p>
-      </div>
-    </details>
+    </Collapsible>
   );
 }
 

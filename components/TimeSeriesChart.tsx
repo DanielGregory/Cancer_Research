@@ -5,6 +5,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -32,6 +33,8 @@ interface TimeSeriesChartProps {
   stepped?: boolean;
   /** Formats y values in the tooltip and axis. */
   formatY?: (v: number) => string;
+  /** Horizontal guide lines, e.g. a progression threshold. */
+  referenceLines?: { y: number; label: string }[];
 }
 
 /**
@@ -47,6 +50,7 @@ export function TimeSeriesChart({
   logScale,
   stepped,
   formatY = formatNumber,
+  referenceLines = [],
 }: TimeSeriesChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -97,9 +101,19 @@ export function TimeSeriesChart({
             height={24}
             iconType="plainline"
             wrapperStyle={{ fontSize: 12 }}
+            itemSorter={null} // keep the order series were given in
             formatter={(value) => <span style={{ color: "var(--text-secondary)" }}>{value}</span>}
           />
         )}
+        {referenceLines.map((r) => (
+          <ReferenceLine
+            key={r.label}
+            y={r.y}
+            stroke="var(--text-muted)"
+            strokeDasharray="2 3"
+            label={{ value: r.label, position: "insideTopLeft", fill: "var(--text-muted)", fontSize: 11 }}
+          />
+        ))}
         {series.map((s) => (
           <Line
             key={s.key}
